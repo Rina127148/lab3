@@ -1,0 +1,64 @@
+<?php
+$host = 'localhost';
+$dbname = 'u82275';
+$user = 'u82275';
+$pass = '4386355';
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $user, $pass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Ошибка БД: " . $e->getMessage());
+}
+
+$full_name = trim($_POST['full_name'] ?? '');
+$phone = trim($_POST['phone'] ?? '');
+$email = trim($_POST['email'] ?? '');
+$birth_date = $_POST['birth_date'] ?? '';
+$gender = $_POST['gender'] ?? '';
+$languages = $_POST['languages'] ?? [];
+$bio = trim($_POST['bio'] ?? '');
+$contract = isset($_POST['contract']) ? 1 : 0;
+
+$errors = [];
+
+if (empty($full_name)) $errors[] = "ФИО обязательно";
+elseif (strlen($full_name) > 150) $errors[] = "ФИО не длиннее 150 символов";
+elseif (!preg_match("/^[a-zA-Zа-яА-ЯёЁ\s\-]+$/u", $full_name)) $errors[] = "ФИО – буквы/пробелы";
+
+if (empty($phone)) $errors[] = "Телефон обязателен";
+
+if (empty($email)) $errors[] = "Email обязателен";
+elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Некорректный email";
+
+if (empty($birth_date)) $errors[] = "Дата рождения обязательна";
+
+if (!in_array($gender, ['male', 'female', 'other'])) $errors[] = "Выберите пол";
+
+if (empty($languages)) $errors[] = "Выберите хотя бы один язык";
+
+if (strlen($bio) > 500) $errors[] = "Биография ≤ 500 символов";
+
+if (!$contract) $errors[] = "Примите условия контракта";
+
+if (!empty($errors)) {
+    $err = implode("\n", $errors);
+    header("Location: index.html?errors=" . urlencode($err));
+    exit;
+}
+
+try {
+    $stmt = $pdo->prepare("INSERT INTO application SET full_name = ?, phone = ?, email = ?, birth_date = ?, gender = ?, bio = ?, contract_accepted = ?");
+    $stmt->execute([$full_name, $phone, $email, $birth_date, $gender, $bio, $contract]);
+    $app_id = $pdo->lastInsertId();
+
+    $langStmt = $pdo->prepare("INSERT INTO application_language (application_id, language_id) VALUES (?, ?)");
+    foreach ($languages as $lid) {
+        $langStmt->execute([$app_id, $lid]);
+    }
+
+    header("Location: index.html?success=1");
+} catch (PDOException $e) {
+    die("Ошибка сохранения: " . $e->getMessage());
+}
+?>
